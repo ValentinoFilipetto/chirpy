@@ -46,9 +46,9 @@ func main() {
 
    fileServer := http.FileServer(http.Dir("."))   
    mux.Handle("/app/", apiCfg.middlewareMetrics(http.StripPrefix("/app", fileServer)))
-   mux.HandleFunc("/healthz", readinessHandler)
-   mux.HandleFunc("/metrics", apiCfg.metricsHandler)
-   mux.HandleFunc("/reset", apiCfg.resetMetricsHandler)
+   mux.HandleFunc("GET /healthz", readinessHandler)
+   mux.HandleFunc("GET /metrics", apiCfg.metricsHandler)
+   mux.HandleFunc("POST /reset", apiCfg.resetMetricsHandler)
 
    server := &http.Server{
     Addr: "127.0.0.1:8080", // forces WSL2 to use IPv4
