@@ -1,5 +1,5 @@
 # Ignore compiled binaries
-out/
+out
 # Binaries for programs and plugins
 *.exe
 *.exe~
