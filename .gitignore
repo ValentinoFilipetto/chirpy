@@ -11,3 +11,4 @@ out
 # Output of the go coverage tool
 *.out
 .env
+settings.json

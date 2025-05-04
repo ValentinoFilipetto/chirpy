@@ -28,7 +28,18 @@ func (cfg *apiConfig) middlewareMetrics(next http.Handler) http.Handler {
 
 func (cfg *apiConfig) resetMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	cfg.fileserverHits.Store(0)
-	w.WriteHeader(http.StatusOK)
+
+	if cfg.env == "dev" {
+		cfg.DB.DeleteUsers(r.Context())
+		err := cfg.DB.DeleteUsers(r.Context())
+		if err != nil {
+			http.Error(w, "Couldn't delete users", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusForbidden)
+	}
 }
 
 func readinessHandler(w http.ResponseWriter, r *http.Request) {

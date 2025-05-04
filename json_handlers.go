@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type errorVals struct {
@@ -13,6 +16,13 @@ type errorVals struct {
 
 type returnVals struct {
 	Cleaned_body string `json:"cleaned_body"`
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 // Handler for JSON responses
@@ -31,7 +41,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 // Handler for error responses
 func respondWithError(w http.ResponseWriter, code int, msg string) {
 	errorBody := errorVals{}
-	errorBody.Error = "Chirp is too long"
+	errorBody.Error = msg
 	dat, err := json.Marshal(errorBody)
 
 	if err != nil {
@@ -84,4 +94,38 @@ func (cfg *apiConfig) ValidateChirpHandler(w http.ResponseWriter, r *http.Reques
 	} else {
 		respondWithError(w, 400, "Chirp is too long")
 	}
+}
+
+func (cfg *apiConfig) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	user, err := cfg.DB.CreateUser(r.Context(), params.Email)
+
+	if err != nil {
+		log.Printf("Error creating user: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	respBody := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(w, 201, respBody)
 }
