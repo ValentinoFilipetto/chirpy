@@ -10,3 +10,4 @@ out
 *.test
 # Output of the go coverage tool
 *.out
+.env
