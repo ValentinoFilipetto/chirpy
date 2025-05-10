@@ -156,3 +156,67 @@ func (cfg *apiConfig) AddChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, 201, respBody)
 }
+
+func (cfg *apiConfig) GetChirpsHandler(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json")
+
+	chirps, err := cfg.DB.GetAllChirps(r.Context())
+
+	if err != nil {
+		log.Printf("Error retrieving chirps from database: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	respBody := make([]Chirp, len(chirps))
+	for i, chirp := range chirps {
+		respBody[i] = Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		}
+	}
+
+	dat, err := json.Marshal(respBody)
+
+	if err != nil {
+		log.Printf("Error marshalling JSON")
+		w.WriteHeader(500)
+		return
+	}
+	w.WriteHeader(200)
+	w.Write(dat)
+}
+
+func (cfg *apiConfig) GetChirpHandler(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json")
+
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		log.Printf("Invalid chirpID: %s", err)
+		respondWithError(w, 400, "Invalid chirpID")
+		return
+	}
+
+	chirp, err := cfg.DB.GetChirp(r.Context(), chirpID)
+
+	if err != nil {
+		log.Printf("Error retrieving chirp from database: %s", err)
+		w.WriteHeader(404)
+		return
+	}
+
+	respBody := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+
+	respondWithJSON(w, 200, respBody)
+}
