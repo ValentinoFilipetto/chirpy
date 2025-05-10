@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ValentinoFilipetto/chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -14,15 +15,19 @@ type errorVals struct {
 	Error string `json:"error"`
 }
 
-type returnVals struct {
-	Cleaned_body string `json:"cleaned_body"`
-}
-
 type User struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+}
+
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
 }
 
 // Handler for JSON responses
@@ -69,33 +74,6 @@ func badWorldReplacement(str string) string {
 	return strings.Join(words, " ")
 }
 
-func (cfg *apiConfig) ValidateChirpHandler(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
-	}
-
-	respBody := returnVals{}
-
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if len(params.Body) <= 140 {
-		params.Body = badWorldReplacement(params.Body)
-		respBody.Cleaned_body = params.Body
-		respondWithJSON(w, 200, respBody)
-	} else {
-		respondWithError(w, 400, "Chirp is too long")
-	}
-}
-
 func (cfg *apiConfig) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email string `json:"email"`
@@ -125,6 +103,55 @@ func (cfg *apiConfig) CreateUserHandler(w http.ResponseWriter, r *http.Request) 
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+	}
+
+	respondWithJSON(w, 201, respBody)
+}
+
+func (cfg *apiConfig) AddChirpHandler(w http.ResponseWriter, r *http.Request) {
+
+	type parameters struct {
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if len(params.Body) <= 140 {
+		params.Body = badWorldReplacement(params.Body)
+	} else {
+		respondWithError(w, 400, "Chirp is too long")
+		return
+	}
+
+	chirpParams := database.CreateChirpParams{
+		Body:   params.Body,
+		UserID: params.UserID,
+	}
+
+	chirp, err := cfg.DB.CreateChirp(r.Context(), chirpParams)
+
+	if err != nil {
+		log.Printf("Error creating chirp: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	respBody := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
 	}
 
 	respondWithJSON(w, 201, respBody)
