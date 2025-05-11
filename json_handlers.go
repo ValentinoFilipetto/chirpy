@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ValentinoFilipetto/chirpy/internal/auth"
 	"github.com/ValentinoFilipetto/chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -76,7 +77,8 @@ func badWorldReplacement(str string) string {
 
 func (cfg *apiConfig) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -88,9 +90,22 @@ func (cfg *apiConfig) CreateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	hashedPassword, err := auth.HashPassword(params.Password)
+
+	if err != nil {
+		log.Printf("Error hashing password: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	createUserParams := database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 
-	user, err := cfg.DB.CreateUser(r.Context(), params.Email)
+	user, err := cfg.DB.CreateUser(r.Context(), createUserParams)
 
 	if err != nil {
 		log.Printf("Error creating user: %s", err)
@@ -219,4 +234,48 @@ func (cfg *apiConfig) GetChirpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, 200, respBody)
+}
+
+func (cfg *apiConfig) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	user, err := cfg.DB.GetUserByEmail(r.Context(), params.Email)
+
+	if err != nil {
+		log.Printf("Error retrieving user from database: %s", err)
+		w.WriteHeader(404)
+		return
+	}
+
+	err = auth.CheckPasswordHash(user.HashedPassword, params.Password)
+
+	if err != nil {
+		log.Printf("Incorrect email or password")
+		w.WriteHeader(401)
+		return
+	}
+
+	respBody := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(w, 200, respBody)
+
 }
