@@ -130,9 +130,25 @@ func (cfg *apiConfig) AddChirpHandler(w http.ResponseWriter, r *http.Request) {
 		UserID uuid.UUID `json:"user_id"`
 	}
 
+	token, tokenError := auth.GetBearerToken(r.Header)
+
+	if tokenError != nil {
+		log.Printf("Error getting bearer token: %s", tokenError)
+		w.WriteHeader(401)
+		return
+	}
+
+	userIDFromJWT, err := auth.ValidateJWT(token, cfg.JWT_SECRET)
+
+	if err != nil {
+		log.Printf("Error validating JWT: %s", err)
+		w.WriteHeader(401)
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
 		w.WriteHeader(500)
@@ -150,7 +166,7 @@ func (cfg *apiConfig) AddChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	chirpParams := database.CreateChirpParams{
 		Body:   params.Body,
-		UserID: params.UserID,
+		UserID: userIDFromJWT,
 	}
 
 	chirp, err := cfg.DB.CreateChirp(r.Context(), chirpParams)
@@ -166,7 +182,7 @@ func (cfg *apiConfig) AddChirpHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: chirp.CreatedAt,
 		UpdatedAt: chirp.UpdatedAt,
 		Body:      chirp.Body,
-		UserID:    chirp.UserID,
+		UserID:    userIDFromJWT,
 	}
 
 	respondWithJSON(w, 201, respBody)
@@ -238,8 +254,9 @@ func (cfg *apiConfig) GetChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -249,6 +266,13 @@ func (cfg *apiConfig) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error decoding parameters: %s", err)
 		w.WriteHeader(500)
 		return
+	}
+
+	// Determine JWT expiration time
+	const defaultExpiration = 3600
+	jwtExpirationTime := time.Duration(defaultExpiration) * time.Second
+	if params.ExpiresInSeconds > 0 && params.ExpiresInSeconds <= defaultExpiration {
+		jwtExpirationTime = time.Duration(params.ExpiresInSeconds) * time.Second
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -269,11 +293,26 @@ func (cfg *apiConfig) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respBody := User{
+	jwt, err := auth.MakeJWT(user.ID, cfg.JWT_SECRET, jwtExpirationTime)
+
+	if err != nil {
+		log.Printf("Error creating JWT: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	respBody := struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+		Token     string    `json:"token"`
+	}{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     jwt,
 	}
 
 	respondWithJSON(w, 200, respBody)
