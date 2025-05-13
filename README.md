@@ -4,5 +4,7 @@ HTTP server written in Golang as part of the [Boot.dev](https://www.boot.dev) cu
 - Basic HTTP handlers 
 - JSON processing and responses
 - PostgreSQL integration
+- Authentication with username/password
+- JWT implementation
 
 This program is still WIP. 
