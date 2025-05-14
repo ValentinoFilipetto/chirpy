@@ -7,5 +7,6 @@ HTTP server written in Golang as part of the [Boot.dev](https://www.boot.dev) cu
 - Authentication with username/password
 - JWT implementation
 - Refresh token implementation
+- A simple webhook
 
 This program is still WIP. 
