@@ -24,3 +24,8 @@ WHERE id = $1;
 UPDATE users 
 SET email = $2, hashed_password = $3
 WHERE id = $1;
+
+-- name: UpdateUserChirpyRedById :exec
+UPDATE users
+SET is_chirpy_red = true
+WHERE id = $1;

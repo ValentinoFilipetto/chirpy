@@ -17,10 +17,11 @@ type errorVals struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type Chirp struct {
@@ -114,10 +115,11 @@ func (cfg *apiConfig) CreateUserHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	respBody := User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed.Valid && user.IsChirpyRed.Bool,
 	}
 
 	respondWithJSON(w, 201, respBody)
@@ -324,6 +326,7 @@ func (cfg *apiConfig) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 		Email        string    `json:"email"`
 		Token        string    `json:"token"`
 		RefreshToken string    `json:"refresh_token"`
+		IsChirpyRed  bool      `json:"is_chirpy_red"`
 	}{
 		ID:           user.ID,
 		CreatedAt:    user.CreatedAt,
@@ -331,6 +334,7 @@ func (cfg *apiConfig) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 		Token:        jwt,
 		RefreshToken: refreshToken,
+		IsChirpyRed:  user.IsChirpyRed.Valid && user.IsChirpyRed.Bool,
 	}
 
 	respondWithJSON(w, 200, respBody)
@@ -517,4 +521,48 @@ func (cfg *apiConfig) deleteChirpByIdHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(204)
+}
+
+func (cfg *apiConfig) polkaWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		}
+	}
+
+	apiKey, _ := auth.GetApiKey(r.Header)
+
+	if apiKey != cfg.POLKA_KEY {
+		respondWithError(w, 401, "Unauthorized 3rd party in Webhook")
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, "Error decoding parameters")
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		w.WriteHeader(204)
+		return
+	} else if params.Event == "user.upgraded" {
+		userID, err := uuid.Parse(params.Data.UserID)
+		if err != nil {
+			respondWithError(w, 400, "Invalid user ID format")
+			return
+		}
+		err = cfg.DB.UpdateUserChirpyRedById(r.Context(), userID)
+
+		if err != nil {
+			respondWithError(w, 404, "User not found in database")
+			return
+		}
+
+		w.WriteHeader(204)
+		return
+	}
+
 }

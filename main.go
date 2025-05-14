@@ -17,6 +17,7 @@ type apiConfig struct {
 	DB             *database.Queries
 	env            string
 	JWT_SECRET     string
+	POLKA_KEY      string
 }
 
 func main() {
@@ -38,6 +39,7 @@ func main() {
 		DB:         dbQueries,
 		env:        os.Getenv("PLATFORM"),
 		JWT_SECRET: os.Getenv("JWT_SECRET"),
+		POLKA_KEY:  os.Getenv("POLKA_KEY"),
 	}
 
 	fileServer := http.FileServer(http.Dir("."))
@@ -54,6 +56,7 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetMetricsHandler)
 	mux.HandleFunc("PUT /api/users", apiCfg.updateUserHandler)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.deleteChirpByIdHandler)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.polkaWebhookHandler)
 
 	server := &http.Server{
 		Addr:    "127.0.0.1:8080", // forces WSL2 to use IPv4
