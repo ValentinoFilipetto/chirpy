@@ -85,3 +85,20 @@ func (q *Queries) GetUserFromRefreshToken(ctx context.Context, id uuid.UUID) (Us
 	)
 	return i, err
 }
+
+const updateUserById = `-- name: UpdateUserById :exec
+UPDATE users 
+SET email = $2, hashed_password = $3
+WHERE id = $1
+`
+
+type UpdateUserByIdParams struct {
+	ID             uuid.UUID
+	Email          string
+	HashedPassword string
+}
+
+func (q *Queries) UpdateUserById(ctx context.Context, arg UpdateUserByIdParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserById, arg.ID, arg.Email, arg.HashedPassword)
+	return err
+}

@@ -406,3 +406,115 @@ func (cfg *apiConfig) RevokeTokenHandler(w http.ResponseWriter, r *http.Request)
 
 	w.WriteHeader(204)
 }
+
+func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, "Error decoding parameters")
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		respondWithError(w, 401, "Error getting token from the header")
+		return
+	}
+	userIDFromJWT, err := auth.ValidateJWT(token, cfg.JWT_SECRET)
+
+	if err != nil {
+		respondWithError(w, 401, "Error validating JWT")
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+
+	if err != nil {
+		respondWithError(w, 500, "Error hashing password")
+		return
+	}
+
+	updateUserParams := database.UpdateUserByIdParams{
+		ID:             userIDFromJWT,
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+	}
+
+	err = cfg.DB.UpdateUserById(r.Context(), updateUserParams)
+
+	if err != nil {
+		respondWithError(w, 500, "Error updating user in database")
+		return
+	}
+
+	updatedUser, err := cfg.DB.GetUserByEmail(r.Context(), params.Email)
+	if err != nil {
+		respondWithError(w, 500, "Error getting updated user")
+		return
+	}
+
+	type userResponse struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+	}
+
+	// After getting the updated user
+	response := userResponse{
+		ID:    updatedUser.ID.String(),
+		Email: updatedUser.Email,
+	}
+	respondWithJSON(w, 200, response)
+
+	w.WriteHeader(200)
+}
+
+func (cfg *apiConfig) deleteChirpByIdHandler(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+
+	if err != nil {
+		log.Printf("Invalid chirpID: %s", err)
+		respondWithError(w, 400, "Invalid chirpID")
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		respondWithError(w, 401, "Error getting token from the header")
+		return
+	}
+	userId, err := auth.ValidateJWT(token, cfg.JWT_SECRET)
+
+	if err != nil {
+		respondWithError(w, 401, "Error validating JWT")
+		return
+	}
+
+	chirp, err := cfg.DB.GetChirp(r.Context(), chirpID)
+
+	if err != nil {
+		respondWithError(w, 403, "Chirp not found in database")
+		return
+	}
+
+	if chirp.UserID != userId {
+		respondWithError(w, 403, "You are not authorized to delete this chirp")
+		return
+	}
+
+	err = cfg.DB.DeleteChirpById(r.Context(), chirpID)
+
+	if err != nil {
+		respondWithError(w, 404, "Chirp not found in database")
+		return
+	}
+
+	w.WriteHeader(204)
+}

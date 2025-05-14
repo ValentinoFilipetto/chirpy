@@ -52,6 +52,8 @@ func main() {
 	mux.HandleFunc("POST /api/revoke", apiCfg.RevokeTokenHandler)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetMetricsHandler)
+	mux.HandleFunc("PUT /api/users", apiCfg.updateUserHandler)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.deleteChirpByIdHandler)
 
 	server := &http.Server{
 		Addr:    "127.0.0.1:8080", // forces WSL2 to use IPv4
