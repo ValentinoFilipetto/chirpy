@@ -6,5 +6,6 @@ HTTP server written in Golang as part of the [Boot.dev](https://www.boot.dev) cu
 - PostgreSQL integration
 - Authentication with username/password
 - JWT implementation
+- Refresh token implementation
 
 This program is still WIP. 

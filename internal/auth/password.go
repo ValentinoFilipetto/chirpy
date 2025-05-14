@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
@@ -66,9 +68,8 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, keyFunc)
-
 	if err != nil {
-		fmt.Println("Token invalid or expired")
+		fmt.Printf("Token validation error: %v\n", err)
 		return uuid.Nil, err
 	}
 
@@ -90,4 +91,16 @@ func GetBearerToken(headers http.Header) (string, error) {
 
 	return strings.TrimPrefix(authorizationString, "Bearer "), nil
 
+}
+
+func MakeRefreshToken() (string, error) {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+
+	if err != nil {
+		return "", err
+	}
+
+	token := hex.EncodeToString(key)
+	return token, nil
 }
