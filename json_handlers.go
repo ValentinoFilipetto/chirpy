@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -191,18 +192,53 @@ func (cfg *apiConfig) AddChirpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) GetChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	chirps := []database.Chirp{}
+	s := r.URL.Query().Get("author_id")
+	sortOrder := r.URL.Query().Get("sort")
+	authorID := uuid.Nil
+	if s != "" {
+		res, err := uuid.Parse(s)
 
-	w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			respondWithError(w, 400, "Invalid author_id")
+			return
+		}
 
-	chirps, err := cfg.DB.GetAllChirps(r.Context())
+		authorID = res
+	}
 
-	if err != nil {
-		log.Printf("Error retrieving chirps from database: %s", err)
-		w.WriteHeader(500)
-		return
+	if authorID == uuid.Nil {
+		res, err := cfg.DB.GetAllChirps(r.Context())
+
+		if err != nil {
+			log.Printf("Error retrieving chirps from database: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		chirps = res
+	} else {
+		res, err := cfg.DB.GetChirpsByUserId(r.Context(), authorID)
+
+		if err != nil {
+			log.Printf("Error retrieving chirps from database: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		chirps = res
+
 	}
 
 	respBody := make([]Chirp, len(chirps))
+
+	sort.Slice(chirps, func(i, j int) bool {
+		if sortOrder == "desc" {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		}
+
+		return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
+	})
+
 	for i, chirp := range chirps {
 		respBody[i] = Chirp{
 			ID:        chirp.ID,
